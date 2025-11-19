@@ -3,12 +3,14 @@
 namespace Tedon\Kachet\Traits;
 
 use Illuminate\Support\Collection;
+use ReflectionClass;
 use Tedon\Kachet\KachetProxy;
 use Tedon\Kachet\Definitions\CachedMethodDefinition;
+use Tedon\Kachet\UseKachet;
 
 trait Kachetable
 {
-    protected string $cachePrefix = 'kachet:';
+    private const DEFAULT_KACHET_PREFIX = 'kachet:';
 
     /** @var ?Collection<CachedMethodDefinition> $cachedMethodDefinitions */
     protected ?Collection $cachedMethodDefinitions = null;
@@ -32,8 +34,23 @@ trait Kachetable
                 $this->cachedMethodDefinitions = collect($this->cachedMethods())->keyBy('methodName');
             }
 
-            $this->kachetProxy = new KachetProxy($this, $this->cachedMethodDefinitions ?? null, $this->cachePrefix);
+            $this->kachetProxy = new KachetProxy($this, $this->cachedMethodDefinitions ?? null, $this->getKachetPrefix());
         }
         return $this->kachetProxy;
+    }
+
+    private function getKachetPrefix(): ?string
+    {
+        $ref = new ReflectionClass($this);
+
+        $attributes = $ref->getAttributes(UseKachet::class);
+
+        if (empty($attributes)) {
+            return self::DEFAULT_KACHET_PREFIX;
+        }
+
+        $attr = $attributes[0]->newInstance();
+
+        return $attr->cacheKey ?? self::DEFAULT_KACHET_PREFIX;
     }
 }

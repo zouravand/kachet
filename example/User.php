@@ -7,6 +7,7 @@ use Tedon\Kachet\Traits\Kachetable;
 /**
  * @method KachetProxy<static> cached()
  */
+#[Tedon\Kachet\UseKachet(cacheKey: 'user:')]
 class User
 {
     use Kachetable;

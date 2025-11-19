@@ -49,7 +49,11 @@ The simplest way to add caching is using PHP attributes:
 ```php
 use Tedon\Kachet\Traits\Kachetable;
 use Tedon\Kachet\UseKachet;
+use Tedon\Kachet\KachetProxy;
 
+/**
+ * @method KachetProxy<static> cached()
+ */
 class UserRepository
 {
     use Kachetable;
@@ -95,7 +99,11 @@ If you prefer to configure cache settings in a method, use the `cachedMethods()`
 
 ```php
 use Tedon\Kachet\Traits\Kachetable;
+use Tedon\Kachet\KachetProxy;
 
+/**
+ * @method KachetProxy<static> cached()
+ */
 class ProductRepository
 {
     use Kachetable;
@@ -269,14 +277,20 @@ public function cachedMethods(): array
 
 ### Custom Cache Prefix
 
-Change the default cache key prefix:
+Change the default cache key prefix using a class-level attribute:
 
 ```php
+use Tedon\Kachet\Traits\Kachetable;
+use Tedon\Kachet\UseKachet;
+use Tedon\Kachet\KachetProxy;
+
+/**
+ * @method KachetProxy<static> cached()
+ */
+#[UseKachet(cacheKey: 'myapp:v2:')]
 class MyRepository
 {
     use Kachetable;
-
-    protected string $cachePrefix = 'myapp:v2:';
 
     #[UseKachet(cacheKey: 'user:%d', ttl: 3600)]
     public function findById(int $id): array
@@ -325,8 +339,12 @@ Here's a comprehensive example showing multiple caching strategies:
 ```php
 use Tedon\Kachet\Traits\Kachetable;
 use Tedon\Kachet\UseKachet;
+use Tedon\Kachet\KachetProxy;
 use Tedon\Kachet\Constants\CachePattern;
 
+/**
+ * @method KachetProxy<static> cached()
+ */
 class BlogRepository
 {
     use Kachetable;
@@ -451,6 +469,38 @@ Kachet uses PHP's magic `__call` method to intercept method calls on the proxy o
 composer test
 ```
 
+## IDE Support & Autocomplete
+
+Kachet fully supports IDE autocomplete for cached methods using PHPDoc annotations. To enable autocomplete in your IDE (PhpStorm, VSCode, etc.), add the following annotation to your class:
+
+```php
+use Tedon\Kachet\Traits\Kachetable;
+use Tedon\Kachet\KachetProxy;
+
+/**
+ * @method KachetProxy<static> cached()
+ */
+class UserRepository
+{
+    use Kachetable;
+
+    public function findById(int $id): array { /* ... */ }
+    public function listLatest(): array { /* ... */ }
+}
+```
+
+With this annotation:
+- Your IDE will autocomplete `$repo->cached()->findById()`
+- Type hints and parameter suggestions will work correctly
+- You'll get proper code navigation and refactoring support
+
+The `@method KachetProxy<static> cached()` annotation tells the IDE that:
+1. The `cached()` method returns a `KachetProxy` instance
+2. The proxy is generic over `static` (your class type)
+3. Through the `@mixin` annotation in `KachetProxy`, the IDE knows the proxy has all your class methods
+
+**Note:** This annotation is optional - your code will work without it, but adding it significantly improves the development experience.
+
 ## Best Practices
 
 1. **Use attributes for simple cases** - They're cleaner and easier to read
@@ -460,6 +510,7 @@ composer test
 5. **Set custom prefixes** - Include version numbers for easier cache busting
 6. **Cache expensive operations** - Database queries, API calls, complex computations
 7. **Don't cache everything** - Simple getters/setters don't need caching
+8. **Add IDE autocomplete annotations** - Include `@method KachetProxy<static> cached()` for better IDE support
 
 ## Cache Invalidation
 
