@@ -2,6 +2,7 @@
 
 namespace Tedon\Kachet;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use ReflectionClass;
@@ -85,7 +86,7 @@ class KachetProxy
 
             // Get attributes from the method
             $attributes = $reflectionMethod->getAttributes(UseKachet::class);
-            $attribute = array_first($attributes);
+            $attribute = Arr::first($attributes);
 
             if ($attribute) {
                 $arguments = $attribute->getArguments();
@@ -108,12 +109,12 @@ class KachetProxy
 
         return new CachedMethodDefinition(
             methodName: $method,
-            cacheKey: $cachedMethod['cacheKey'] ?? '',
-            ttl: $cachedMethod['ttl'] ?? null,
-            tags: $cachedMethod['tags'] ?? [],
-            cacheNullValue: $cachedMethod['cacheNullValue'] ?? true,
-            storePattern: $cachedMethod['storePattern'] ?? CachePattern::NONE,
-            driver: $cachedMethod['driver'] ?? null
+            cacheKey: $cachedMethod->cacheKey ?? '',
+            ttl: $cachedMethod->ttl ?? null,
+            tags: $cachedMethod->tags ?? [],
+            cacheNullValue: $cachedMethod->cacheNullValue ?? true,
+            storePattern: $cachedMethod->storePattern ?? CachePattern::NONE,
+            driver: $cachedMethod->driver ?? null
         );
     }
 }
