@@ -1,0 +1,43 @@
+{
+  "name": "tedon/kachet",
+  "description": "Elegant method-level caching for PHP classes",
+  "type": "library",
+  "keywords": ["cache", "caching", "redis", "laravel", "attributes", "proxy", "method-cache", "repository"],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Pouya Zouravand",
+      "email": "pouya.zuravand@gmail.com"
+    }
+  ],
+  "require": {
+    "php": "^8.2",
+    "illuminate/cache": "^10.0|^11.0|^12.0",
+    "tedon/tooner": "*"
+  },
+  "require-dev": {
+    "illuminate/support": "^10.0|^11.0|^12.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Tedon\\Kachet\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tedon\\Kachet\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Tedon\\Kachet\\KachetServiceProvider"
+      ],
+      "aliases": {
+        "Kachet": "Tedon\\Kachet\\Facades\\Kachet"
+      }
+    }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}
