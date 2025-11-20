@@ -13,7 +13,7 @@
   "require": {
     "php": "^8.2",
     "illuminate/cache": "^10.0|^11.0|^12.0",
-    "tedon/tooner": "dev-master"
+    "tedon/tooner": "^1.0"
   },
   "require-dev": {
     "illuminate/support": "^10.0|^11.0|^12.0"
