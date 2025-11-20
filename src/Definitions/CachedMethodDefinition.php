@@ -12,7 +12,7 @@ class CachedMethodDefinition
         public ?int $ttl = null,
         public array $tags = [],
         public bool $cacheNullValue = false,
-        public CachePattern $storePattern = CachePattern::NONE,
+        public CachePattern $storePattern = CachePattern::BASE,
         public ?string $driver = null,
     ) {}
 }

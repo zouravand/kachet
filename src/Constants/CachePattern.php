@@ -4,7 +4,7 @@ namespace Tedon\Kachet\Constants;
 
 enum CachePattern: string
 {
-    case NONE = 'none';
+    case BASE = 'base';
     case JSON = 'json';
     case TOON  = 'toon';
 }

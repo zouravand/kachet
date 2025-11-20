@@ -253,7 +253,7 @@ public function cachedMethods(): array
 ```
 
 Available patterns:
-- `CachePattern::NONE` - No serialization (default)
+- `CachePattern::BASE` - No serialization (default)
 - `CachePattern::JSON` - JSON serialization
 - `CachePattern::TOON` - TOON format (requires tedon/tooner)
 

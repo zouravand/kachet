@@ -5,11 +5,14 @@ namespace Tedon\Kachet;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use Tedon\Kachet\Constants\CachePattern;
 use Tedon\Kachet\Definitions\CachedMethodDefinition;
 use Tedon\Kachet\Exceptions\KachetException;
+use Tedon\Kachet\Patterns\BasePattern;
+use Tedon\Kachet\Patterns\Pattern;
 
 /**
  * CacheProxy intercepts method calls and delegates them to the loadFromCache method
@@ -43,25 +46,29 @@ class KachetProxy
     public function __call(string $method, array $args): mixed
     {
         $cachedMethod = $this->getCachedMethod($method);
-        $cacheKey = $this->generateCacheKey($cachedMethod, $args);
+        $storePattern = $this->getStorePattern($cachedMethod);
+        $cacheKey = $storePattern->getPrefix() . $this->generateCacheKey($cachedMethod, $args);
 
 
-        $callback = fn() => $this->targetClass->{$cachedMethod->methodName}(...$args);
-        return ($cachedMethod->ttl === null)
+        $callback = fn() => $storePattern->encode($this->targetClass->{$cachedMethod->methodName}(...$args));
+        $result = ($cachedMethod->ttl === null)
             ? Cache::driver($cachedMethod->driver)->rememberForever($cacheKey, $callback)
             : Cache::driver($cachedMethod->driver)->remember($cacheKey, $cachedMethod->ttl, $callback);
+
+        return $storePattern->decode($result);
     }
 
     public function generateCacheKey(CachedMethodDefinition $cachedMethodDefinition, array $arguments = []): string
     {
         preg_match_all('/%(\d+\$)?[bcdeEfFgGosuxX]/', $cachedMethodDefinition->cacheKey, $matches);
         $cacheKey = vsprintf($cachedMethodDefinition->cacheKey, [...$arguments, ...array_fill(0, count($matches[0]) - count($arguments), '')]);
-        return $this->getCachePatternPrefix($cachedMethodDefinition) . $this->cachePrefix . $cacheKey;
+        return $this->cachePrefix . $cacheKey;
     }
 
-    private function getCachePatternPrefix(CachedMethodDefinition $cachedMethodDefinition): string
+    public function getStorePattern(CachedMethodDefinition $cachedMethod): Pattern
     {
-        return '';
+        $storePattern = config('kachet.patterns.'.$cachedMethod->storePattern->value);
+        return new $storePattern();
     }
 
     /**
@@ -86,6 +93,7 @@ class KachetProxy
 
             // Get attributes from the method
             $attributes = $reflectionMethod->getAttributes(UseKachet::class);
+            /** @var ReflectionAttribute $attribute */
             $attribute = Arr::first($attributes);
 
             if ($attribute) {
@@ -95,6 +103,10 @@ class KachetProxy
                     'methodName' => $method,
                     'cacheKey' => $arguments['cacheKey'] ?? '',
                     'ttl' => $arguments['ttl'] ?? null,
+                    'tags' => $arguments['tags'] ?? [],
+                    'cacheNullValue' => $arguments['cacheNullValue'] ?? true,
+                    'storePattern' => $arguments['storePattern'] ?? CachePattern::BASE,
+                    'driver' => $arguments['driver'] ?? null,
                 ];
                 if ($this->cachedMethodDefinitions === null) {
                     $this->cachedMethodDefinitions = collect();
@@ -113,7 +125,7 @@ class KachetProxy
             ttl: $cachedMethod->ttl ?? null,
             tags: $cachedMethod->tags ?? [],
             cacheNullValue: $cachedMethod->cacheNullValue ?? true,
-            storePattern: $cachedMethod->storePattern ?? CachePattern::NONE,
+            storePattern: $cachedMethod->storePattern ?? CachePattern::BASE,
             driver: $cachedMethod->driver ?? null
         );
     }

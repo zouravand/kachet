@@ -1,4 +1,10 @@
 <?php
+
+use Tedon\Kachet\Patterns\BasePattern;
+use Tedon\Kachet\Patterns\JsonPattern;
+use Tedon\Kachet\Patterns\ToonPattern;
+use Tedon\Kachet\Constants\CachePattern;
+
 return [
     'toon' => [
         'validate_lengths' => env('KACHET_TOON_VALIDATE_LENGTHS', true),
@@ -13,4 +19,9 @@ return [
         'skip_nulls' => env('KACHET_TOON_SKIP_NULLS', false),
         'normalize_numeric_keys' => env('KACHET_TOON_NORMALIZE_NUMERIC_KEYS', true),
     ],
+    'patterns' => [
+        CachePattern::BASE->value => BasePattern::class,
+        CachePattern::JSON->value => JsonPattern::class,
+        CachePattern::TOON->value => ToonPattern::class,
+    ]
 ];
