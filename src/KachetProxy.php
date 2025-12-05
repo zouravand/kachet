@@ -5,14 +5,15 @@ namespace Tedon\Kachet;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Psr\SimpleCache\InvalidArgumentException;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use Tedon\Kachet\Constants\CachePattern;
 use Tedon\Kachet\Definitions\CachedMethodDefinition;
 use Tedon\Kachet\Exceptions\KachetException;
-use Tedon\Kachet\Patterns\BasePattern;
 use Tedon\Kachet\Patterns\Pattern;
+use ValueError;
 
 /**
  * CacheProxy intercepts method calls and delegates them to the loadFromCache method
@@ -22,6 +23,9 @@ use Tedon\Kachet\Patterns\Pattern;
  */
 class KachetProxy
 {
+    /** @var array<string, Pattern> */
+    private array $patternCache = [];
+
     /**
      * @param T $targetClass
      * @param Collection<CachedMethodDefinition>|null $cachedMethodDefinitions
@@ -42,6 +46,7 @@ class KachetProxy
      * @return mixed
      * @throws KachetException
      * @throws ReflectionException
+     * @throws InvalidArgumentException
      */
     public function __call(string $method, array $args): mixed
     {
@@ -49,26 +54,88 @@ class KachetProxy
         $storePattern = $this->getStorePattern($cachedMethod);
         $cacheKey = $storePattern->getPrefix() . $this->generateCacheKey($cachedMethod, $args);
 
+        $cache = Cache::driver($cachedMethod->driver);
 
-        $callback = fn() => $storePattern->encode($this->targetClass->{$cachedMethod->methodName}(...$args));
-        $result = ($cachedMethod->ttl === null)
-            ? Cache::driver($cachedMethod->driver)->rememberForever($cacheKey, $callback)
-            : Cache::driver($cachedMethod->driver)->remember($cacheKey, $cachedMethod->ttl, $callback);
+        // Apply tags if provided
+        if (!empty($cachedMethod->tags)) {
+            $cache = $cache->tags($cachedMethod->tags);
+        }
 
-        return $storePattern->decode($result);
+        // Check if value exists in cache
+        if ($cache->has($cacheKey)) {
+            $encodedValue = $cache->get($cacheKey);
+            return $storePattern->decode($encodedValue);
+        }
+
+        // Execute the method
+        $result = $this->targetClass->{$cachedMethod->methodName}(...$args);
+
+        // Check if we should cache null values
+        if ($result === null && !$cachedMethod->cacheNullValue) {
+            return null;
+        }
+
+        // Encode and store in cache
+        $encodedValue = $storePattern->encode($result);
+
+        if ($cachedMethod->ttl === null) {
+            $cache->forever($cacheKey, $encodedValue);
+        } else {
+            $cache->put($cacheKey, $encodedValue, $cachedMethod->ttl);
+        }
+
+        return $result;
     }
 
+    /**
+     * @throws KachetException
+     */
     public function generateCacheKey(CachedMethodDefinition $cachedMethodDefinition, array $arguments = []): string
     {
+        // Count placeholders in the format string
         preg_match_all('/%(\d+\$)?[bcdeEfFgGosuxX]/', $cachedMethodDefinition->cacheKey, $matches);
-        $cacheKey = vsprintf($cachedMethodDefinition->cacheKey, [...$arguments, ...array_fill(0, count($matches[0]) - count($arguments), '')]);
+        $placeholderCount = count($matches[0]);
+
+        // Prepare arguments array with proper padding
+        $formattedArgs = $arguments;
+        if ($placeholderCount > count($arguments)) {
+            // Pad with empty strings if we have more placeholders than arguments
+            $formattedArgs = [...$arguments, ...array_fill(0, $placeholderCount - count($arguments), '')];
+        }
+
+        // Generate cache key with error handling
+        try {
+            $cacheKey = vsprintf($cachedMethodDefinition->cacheKey, $formattedArgs);
+            if (!$cacheKey) {
+                throw new KachetException("Failed to generate cache key from format string: $cachedMethodDefinition->cacheKey");
+            }
+        } catch (ValueError $e) {
+            throw new KachetException("Invalid cache key format: " . $e->getMessage(), 0, $e);
+        }
+
         return $this->cachePrefix . $cacheKey;
     }
 
+    /**
+     * @throws KachetException
+     */
     public function getStorePattern(CachedMethodDefinition $cachedMethod): Pattern
     {
-        $storePattern = config('kachet.patterns.'.$cachedMethod->storePattern->value);
-        return new $storePattern();
+        $patternKey = $cachedMethod->storePattern->value;
+
+        // Return cached instance if available
+        if (isset($this->patternCache[$patternKey])) {
+            return $this->patternCache[$patternKey];
+        }
+
+        // Create new instance and cache it
+        $storePatternClass = config('kachet.patterns.'.$patternKey);
+        if (!$storePatternClass) {
+            throw new KachetException("Pattern '$patternKey' is not configured");
+        }
+
+        $this->patternCache[$patternKey] = new $storePatternClass();
+        return $this->patternCache[$patternKey];
     }
 
     /**
@@ -104,7 +171,7 @@ class KachetProxy
                     'cacheKey' => $arguments['cacheKey'] ?? '',
                     'ttl' => $arguments['ttl'] ?? null,
                     'tags' => $arguments['tags'] ?? [],
-                    'cacheNullValue' => $arguments['cacheNullValue'] ?? true,
+                    'cacheNullValue' => $arguments['cacheNullValue'] ?? false,
                     'storePattern' => $arguments['storePattern'] ?? CachePattern::BASE,
                     'driver' => $arguments['driver'] ?? null,
                 ];
@@ -124,7 +191,7 @@ class KachetProxy
             cacheKey: $cachedMethod->cacheKey ?? '',
             ttl: $cachedMethod->ttl ?? null,
             tags: $cachedMethod->tags ?? [],
-            cacheNullValue: $cachedMethod->cacheNullValue ?? true,
+            cacheNullValue: $cachedMethod->cacheNullValue ?? false,
             storePattern: $cachedMethod->storePattern ?? CachePattern::BASE,
             driver: $cachedMethod->driver ?? null
         );
